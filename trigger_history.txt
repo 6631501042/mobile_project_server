@@ -1,0 +1,23 @@
+DELIMITER $$
+
+CREATE TRIGGER trg_history_status_update
+AFTER UPDATE ON history
+FOR EACH ROW
+BEGIN
+  -- When status changes from pending → approved
+  IF OLD.status = 'pending' AND NEW.status = 'approved' THEN
+    UPDATE rooms
+    SET status = 'reserved'
+    WHERE id = NEW.room_id AND status = 'pending';
+  END IF;
+
+  -- When status changes from pending → rejected
+  IF OLD.status = 'pending' AND NEW.status = 'rejected' THEN
+    UPDATE rooms
+    SET status = 'free',
+        role_id = NULL
+    WHERE id = NEW.room_id AND status = 'pending';
+  END IF;
+END$$
+
+DELIMITER ;

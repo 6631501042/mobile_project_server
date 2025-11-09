@@ -94,8 +94,6 @@ app.get("/api/student/history/:roleID", (req, res) => {
   const roleID = req.params.roleID;
   const sql = `
     SELECT
-      LPAD(h.role_id, 4, '0') AS req_id_padded,
-      r.username,
       rm.roomname AS roomCode,
       DATE_FORMAT(h.reserved_date, '%d %b %Y') AS dateText,
       rm.timeslot AS timeText,
@@ -113,7 +111,7 @@ app.get("/api/student/history/:roleID", (req, res) => {
   con.query(sql, [roleID], (err, rows) => {
     if (err) return res.status(500).send("Database server error");
     const payload = rows.map(row => ({
-      reqIdAndUser: `${row.req_id_padded}/${row.username}`,
+      // reqIdAndUser: `${row.req_id_padded}/${row.username}`, // comment because need not show req_id
       roomCode: row.roomCode,
       date: row.dateText,
       time: row.timeText,
