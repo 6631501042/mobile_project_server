@@ -186,7 +186,42 @@ app.get('/api/rooms/status', (req, res) => {
 });
 
 //========================== approver ======================================
+//------------------------- History approver --------------------------------
 
+// Approver can view all history (approved + rejected)
+app.get("/api/approver/history", (req, res) => {
+  const sql = `
+    SELECT
+      LPAD(h.role_id, 4, '0') AS req_id_padded,
+      r.username,
+      rm.roomname AS roomCode,
+      DATE_FORMAT(h.reserved_date, '%d %b %Y') AS dateText,
+      rm.timeslot AS timeText,
+      CASE WHEN h.status='approved' THEN 'Approved' ELSE 'Rejected' END AS statusText,
+      h.reason AS rejectReason,
+      a.username AS approverName
+    FROM history h
+    JOIN roles r ON r.id = h.role_id
+    JOIN rooms rm ON rm.id = h.room_id
+    LEFT JOIN roles a ON a.id = h.approver_id
+    WHERE h.status IN ('approved','rejected')   -- only show approved/rejected
+    ORDER BY h.reserved_date DESC, rm.timeslot ASC
+  `;
+
+  con.query(sql, (err, rows) => {
+    if (err) return res.status(500).send("Database server error");
+    const payload = rows.map(row => ({
+      reqIdAndUser: `${row.req_id_padded}/${row.username}`,
+      roomCode: row.roomCode,
+      date: row.dateText,
+      time: row.timeText,
+      status: row.statusText,
+      approverName: row.approverName || "—",
+      rejectReason: row.rejectReason || ""
+    }));
+    res.json(payload);
+  });
+});
 
 
 //========================== Common APIs =================================
