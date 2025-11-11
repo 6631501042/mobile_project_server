@@ -58,14 +58,22 @@ app.use((req, res, next) => {
 app.get('/api/health', (_req, res) => res.send('ok'));
 
 // ====== Common rooms endpoint (Flutter/Thunder ใช้ตัวนี้) ======
-app.get('/api/rooms', (_req, res) => {
+app.get('/api/rooms', (req, res) => {
   const sql = 'SELECT * FROM rooms ORDER BY roomname, timeslot';
   con.query(sql, (err, rows) => {
     if (err) {
       console.error(err.message);
       return res.status(500).send('Database server error');
     }
-    res.json(rows);
+
+    // ใช้ req ที่ส่งมาจาก Express ได้ตรงชื่อ
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const data = rows.map(r => ({
+      ...r,
+      imageUrl: r.image || null
+    }));
+
+    res.json(data);
   });
 });
 
@@ -206,43 +214,6 @@ app.get("/api/staff/roles", (_req, res) => {
     res.json(result);
   });
 });
-
-// Staff can view all history (approved + rejected)
-app.get("/api/staff/history", (req, res) => {
-  const sql = `
-    SELECT
-      LPAD(h.role_id, 4, '0') AS req_id_padded,
-      r.username,
-      rm.roomname AS roomCode,
-      DATE_FORMAT(h.reserved_date, '%d %b %Y') AS dateText,
-      rm.timeslot AS timeText,
-      CASE WHEN h.status='approved' THEN 'Approved' ELSE 'Rejected' END AS statusText,
-      h.reason AS rejectReason,
-      a.username AS approverName
-    FROM history h
-    JOIN roles r ON r.id = h.role_id
-    JOIN rooms rm ON rm.id = h.room_id
-    LEFT JOIN roles a ON a.id = h.approver_id
-    WHERE h.status IN ('approved','rejected')   -- only show approved/rejected
-    ORDER BY h.reserved_date DESC, rm.timeslot ASC
-  `;
-
-  con.query(sql, (err, rows) => {
-    if (err) return res.status(500).send("Database server error");
-    const payload = rows.map(row => ({
-      reqIdAndUser: `${row.req_id_padded}/${row.username}`,
-      roomCode: row.roomCode,
-      date: row.dateText,
-      time: row.timeText,
-      status: row.statusText,
-      approverName: row.approverName || "—",
-      rejectReason: row.rejectReason || ""
-    }));
-    res.json(payload);
-  });
-});
-
-
 // -------------------------- dashboard summary status --------------------------
 app.get('/api/rooms/status', (req, res) => {
   const sql = `
@@ -261,7 +232,6 @@ app.get('/api/rooms/status', (req, res) => {
     res.json(results[0]);
   });
 });
-
 // -------------------------- Add room --------------------------
 app.post('/api/addRoom', upload.single('image'), async (req, res) => {
   const { roomname, roomtype, image: imagePathFromBody } = req.body;
@@ -364,66 +334,31 @@ app.put('/api/updateRoom/:roomId', upload.single('image'), (req, res) => {
 });
 
 //========================== approver ======================================
-//------------------------- History approver --------------------------------
 
-// Approver can view all history (approved + rejected)
-app.get("/api/approver/history", (req, res) => {
-  const sql = `
-    SELECT
-      LPAD(h.role_id, 4, '0') AS req_id_padded,
-      r.username,
-      rm.roomname AS roomCode,
-      DATE_FORMAT(h.reserved_date, '%d %b %Y') AS dateText,
-      rm.timeslot AS timeText,
-      CASE WHEN h.status='approved' THEN 'Approved' ELSE 'Rejected' END AS statusText,
-      h.reason AS rejectReason,
-      a.username AS approverName
-    FROM history h
-    JOIN roles r ON r.id = h.role_id
-    JOIN rooms rm ON rm.id = h.room_id
-    LEFT JOIN roles a ON a.id = h.approver_id
-    WHERE h.status IN ('approved','rejected')   -- only show approved/rejected
-    ORDER BY h.reserved_date DESC, rm.timeslot ASC
-  `;
-
-  con.query(sql, (err, rows) => {
-    if (err) return res.status(500).send("Database server error");
-    const payload = rows.map(row => ({
-      reqIdAndUser: `${row.req_id_padded}/${row.username}`,
-      roomCode: row.roomCode,
-      date: row.dateText,
-      time: row.timeText,
-      status: row.statusText,
-      approverName: row.approverName || "—",
-      rejectReason: row.rejectReason || ""
-    }));
-    res.json(payload);
-  });
-});
 
 
 //========================== Common APIs =================================
 //-------------------------- Get all students ------------------------
-app.get("/api/staff/student",(_req, res) => {
-    const sql = "SELECT id, username FROM roles WHERE role = 'student'";
-    con.query(sql, (err, result) => {
-        if (err) {
-            console.error(err.message);
-            return res.status(500).send("Database server error");
-        }
-        res.json(result);
-    });
+app.get("/api/staff/student", (_req, res) => {
+  const sql = "SELECT id, username FROM roles WHERE role = 'student'";
+  con.query(sql, (err, result) => {
+    if (err) {
+      console.error(err.message);
+      return res.status(500).send("Database server error");
+    }
+    res.json(result);
+  });
 });
 //-------------------------- Get all staffs ------------------------
-app.get("/api/staff/staff",(_req, res) => {
-    const sql = "SELECT id, username FROM roles WHERE role = 'staff'";
-    con.query(sql, (err, result) => {
-        if (err) {
-            console.error(err.message);
-            return res.status(500).send("Database server error");
-        }
-        res.json(result);
-    });
+app.get("/api/staff/staff", (_req, res) => {
+  const sql = "SELECT id, username FROM roles WHERE role = 'staff'";
+  con.query(sql, (err, result) => {
+    if (err) {
+      console.error(err.message);
+      return res.status(500).send("Database server error");
+    }
+    res.json(result);
+  });
 });
 //-------------------------- password generator ------------------------
 app.get('/api/password/:raw', (req, res) => {
@@ -436,20 +371,20 @@ app.get('/api/password/:raw', (req, res) => {
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
   const sql = "SELECT id, password, role FROM roles WHERE username = ?";
-    con.query(sql, [username], function(err, results) {
-        if(err) {
-            return res.status(500).send("Database server error");
-        }
-        if(results.length != 1) {
-            return res.status(401).send("Wrong username");
-        }
-        // compare passwords using argon2id
-        const same = argon2.verifySync(results[0].password, password);
-        if(same) {
-            return res.json({"role_id": results[0].id, "username": username, "role": results[0].role});
-        }
-        return res.status(401).send("Wrong password");
-    })
+  con.query(sql, [username], function (err, results) {
+    if (err) {
+      return res.status(500).send("Database server error");
+    }
+    if (results.length != 1) {
+      return res.status(401).send("Wrong username");
+    }
+    // compare passwords using argon2id
+    const same = argon2.verifySync(results[0].password, password);
+    if (same) {
+      return res.json({ "role_id": results[0].id, "username": username, "role": results[0].role });
+    }
+    return res.status(401).send("Wrong password");
+  })
 });
 
 //------------------- Register Add new account --------------
