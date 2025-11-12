@@ -170,7 +170,6 @@ app.post('/api/approver/approve', (req, res) => {
   });
 });
 
-
 // ───────────── Approver: REJECT ─────────────
 // body: { history_id, approver_id, reason }
 app.post('/api/approver/reject', (req, res) => {
