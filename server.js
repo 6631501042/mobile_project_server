@@ -108,8 +108,8 @@ app.get('/api/student/statuss/:roleID', (req, res) => {
       date: row.dateText,
       time: row.timeText,
       status: row.statusText,
-      approverName: row.approverName || '—',
-      rejectReason: row.rejectReason || ''
+      approverName: row.approverName,
+      rejectReason: row.rejectReason
     }));
 
     res.json(payload);
