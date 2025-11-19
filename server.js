@@ -11,7 +11,6 @@ const cors = require('cors');
 
 app.use(cors()); // ton
 console.log('>>> RUNNING FROM:', __filename); // ton
-
 // วางไว้ใต้ app.use(express.json()) // ton
 app.use((req,res,next)=>{
   console.log('> IN:', req.method, req.url);
@@ -545,12 +544,13 @@ app.put('/api/updateRoom/:roomId', upload.single('image'), (req, res) => {
   const finalImage = uploadedImagePath || imageFromBody || null;
 
   // ดึงข้อมูลเก่าก่อนอัปเดต
-  const sqlGet = 'SELECT roomname, image FROM rooms WHERE id = ? LIMIT 1';
+  const sqlGet = 'SELECT role_id, roomname, image FROM rooms WHERE id = ? LIMIT 1';
   con.query(sqlGet, [roomId], (err, rows) => {
     if (err) return res.status(500).send('Database error');
     if (rows.length === 0) return res.status(404).send('Room not found');
 
     const oldName = rows[0].roomname;
+    const oldRoleId = rows[0].role_id;
     const oldImage = rows[0].image;
     const imageToSave = finalImage || oldImage;
 
@@ -569,7 +569,7 @@ app.put('/api/updateRoom/:roomId', upload.single('image'), (req, res) => {
     // ✅ อัปเดตข้อมูลใน DB
     const sqlUpdate = `
       UPDATE rooms
-      SET roomname = ?, roomtype = ?, status = ?, image = ?
+      SET role_id = null, roomname = ?, roomtype = ?, status = ?, image = ?
       WHERE roomname = ?;
     `;
     con.query(
